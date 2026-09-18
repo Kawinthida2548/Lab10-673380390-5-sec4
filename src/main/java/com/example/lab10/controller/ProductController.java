@@ -1,8 +1,17 @@
 package com.example.lab10.controller;
 
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.example.lab10.client.ProductWebClient;
 import com.example.lab10.model.Product;
 import com.example.lab10.service.ProductService;
-import org.springframework.web.bind.annotation.*;
+
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -27,9 +36,11 @@ public class ProductController {
 
     // ── Constructor Injection (DIP — SOLID) ─────────────
     private final ProductService service;
-
-    public ProductController(ProductService service) {
+    private final ProductWebClient webClient;
+    
+    public ProductController(ProductService service, ProductWebClient webClient) {
         this.service = service;
+        this.webClient = webClient;
     }
 
     // ══════════════════════════════════════════════════════
@@ -58,10 +69,9 @@ public class ProductController {
      * Hint: เรียก service.getAll()
      * ทดสอบ: GET http://localhost:8080/products
      */
-    @GetMapping
+     @GetMapping
     public Flux<Product> getAll() {
-        // TODO: เติม code ตรงนี้
-        return null; // ← แก้บรรทัดนี้
+        return service.getAll();
     }
 
     /**
@@ -74,8 +84,7 @@ public class ProductController {
      */
     @PostMapping
     public Mono<Product> save(@RequestBody Product product) {
-        // TODO: เติม code ตรงนี้
-        return null; // ← แก้บรรทัดนี้
+        return service.save(product);
     }
 
     /**
@@ -87,8 +96,7 @@ public class ProductController {
      */
     @DeleteMapping("/{id}")
     public Mono<Void> delete(@PathVariable String id) {
-        // TODO: เติม code ตรงนี้
-        return null; // ← แก้บรรทัดนี้
+        return service.delete(id);
     }
 
     /**
@@ -100,8 +108,7 @@ public class ProductController {
      */
     @GetMapping("/category/{category}")
     public Flux<Product> getByCategory(@PathVariable String category) {
-        // TODO: เติม code ตรงนี้
-        return null; // ← แก้บรรทัดนี้
+        return service.getByCategory(category);
     }
 
     /**
@@ -113,7 +120,55 @@ public class ProductController {
      */
     @GetMapping("/{id}/price")
     public Mono<Double> getDiscountedPrice(@PathVariable String id) {
-        // TODO: เติม code ตรงนี้
-        return null; // ← แก้บรรทัดนี้
+        return service.getDiscountedPrice(id);
+    }
+
+     // ══════════════════════════════════════════════════════
+    // 🧪 Demo endpoints — เรียก ProductWebClient แล้ว chain operators
+    // ══════════════════════════════════════════════════════
+
+    /**
+     * GET /products/demo/{id}
+     * เรียก endpoint /products/{id} ผ่าน WebClient แล้ว chain
+     * .map() → แปลงเป็นข้อความ, .defaultIfEmpty() → fallback ถ้าไม่พบ
+     *
+     * ทดสอบ: GET http://localhost:8080/products/demo/1
+     *        GET http://localhost:8080/products/demo/999  (ไม่มีจริง)
+     */
+    @GetMapping("/demo/{id}")
+    public Mono<String> demoGetById(@PathVariable String id) {
+        return webClient.getProductById(id)
+                .map(p -> "Product: " + p.getName() + " | Price: " + p.getPrice())
+                .defaultIfEmpty("Not Found")
+                .onErrorReturn("Error: something went wrong");
+    }
+
+    /**
+     * GET /products/demo/category/{category}
+     * เรียก endpoint /products/category/{cat} ผ่าน WebClient แล้ว chain
+     * .filter() → เอาเฉพาะที่มี stock, .map() → format ข้อความ
+     *
+     * ทดสอบ: GET http://localhost:8080/products/demo/category/Electronics
+     */
+    @GetMapping("/demo/category/{category}")
+    public Flux<String> demoGetByCategory(@PathVariable String category) {
+        return webClient.getByCategory(category)
+                .filter(p -> p.getStock() > 0)
+                .map(p -> p.getName() + " (stock: " + p.getStock() + ")");
+    }
+
+    /**
+     * GET /products/demo/{id}/price
+     * เรียก endpoint /products/{id}/price ผ่าน WebClient
+     * แสดงราคาหลังส่วนลด พร้อม fallback ถ้าไม่พบ
+     *
+     * ทดสอบ: GET http://localhost:8080/products/demo/1/price
+     */
+    @GetMapping("/demo/{id}/price")
+    public Mono<String> demoGetPrice(@PathVariable String id) {
+        return webClient.getDiscountedPrice(id)
+                .map(price -> "Discounted price: " + price)
+                .defaultIfEmpty("Price not available")
+                .onErrorReturn("Error: product not found");
     }
 }
